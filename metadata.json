@@ -1,0 +1,8 @@
+
+{
+  "name": "One UI Galaxy Mockup",
+  "description": "A high-fidelity Samsung Galaxy mobile phone frame and One UI interface mockup featuring core Samsung design principles like one-handed usability and clean hierarchy.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
