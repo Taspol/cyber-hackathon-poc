@@ -187,10 +187,10 @@ const App: React.FC = () => {
         {/* Commonly Used Apps Grid - Using Image Icons from public/apps/ */}
         <div className="grid grid-cols-4 gap-y-6 gap-x-2 px-2 pb-10">
           {[
-            { label: 'Camera', image: '/public/apps/camera.png' },
-            { label: 'Google', image: '/public/apps/google.webp' },
-            { label: 'Facebook', image: '/public/apps/facebook.webp' },
-            { label: 'K PLUS', image: '/public/apps/kplus.png' },
+            { label: 'Camera', image: '/apps/camera.png' },
+            { label: 'Google', image: '/apps/google.webp' },
+            { label: 'Facebook', image: '/apps/facebook.webp' },
+            { label: 'K PLUS', image: '/apps/kplus.png' },
           ].map((app, i) => (
             <div key={i} className="flex flex-col items-center space-y-1 active:scale-90 transition-transform cursor-pointer">
                <div className="w-14 h-14 rounded-[1.3rem] shadow-md overflow-hidden bg-white/5 flex items-center justify-center border border-white/10">
@@ -234,8 +234,64 @@ const App: React.FC = () => {
   );
 
   return (
-    <div className="p-4 select-none">
-      <div ref={phoneFrameRef}>
+    <div className="w-full h-full flex items-start justify-center overflow-auto py-4 px-2 gap-6">
+      {/* Side Control Panel */}
+      <div className="flex flex-col space-y-4 pt-4 sticky top-4">
+        {/* Record Button */}
+        <button 
+          onClick={isRecording ? stopRecording : startRecording}
+          className={`flex items-center space-x-2 px-4 py-3 rounded-full font-bold transition-all shadow-lg active:scale-95 text-sm ${
+            isRecording 
+              ? 'bg-red-600 text-white hover:bg-red-700 animate-pulse' 
+              : 'bg-purple-600 text-white hover:bg-purple-700'
+          }`}
+        >
+          {isRecording ? (
+            <>
+              <div className="w-3 h-3 rounded-sm bg-white"></div>
+              <span className="hidden lg:inline">Stop</span>
+            </>
+          ) : (
+            <>
+              <div className="w-3 h-3 rounded-full bg-white border-2 border-white"></div>
+              <span className="hidden lg:inline">Record</span>
+            </>
+          )}
+        </button>
+        
+        <button 
+          onClick={() => { setIsLocked(true); setActiveScreen('Home'); }} 
+          className="flex items-center justify-center space-x-2 px-4 py-3 rounded-full font-bold bg-gray-900 text-white hover:bg-black transition-all shadow-lg active:scale-95 text-sm"
+        >
+          <Icons.Power className="w-4 h-4" />
+          <span className="hidden lg:inline">Lock</span>
+        </button>
+        
+        <button 
+          onClick={() => { setIsLocked(false); setActiveScreen('Home'); setQuickPanelOpen(false); }} 
+          className="flex items-center justify-center space-x-2 px-4 py-3 rounded-full font-bold bg-blue-600 text-white transition-all shadow-lg hover:bg-blue-700 active:scale-95 text-sm"
+        >
+          <Icons.Home className="w-4 h-4" />
+          <span className="hidden lg:inline">Home</span>
+        </button>
+        
+        <button 
+          onClick={() => { setIsLocked(false); setPreviousScreen(activeScreen); setActiveScreen('Phone'); setQuickPanelOpen(false); setTriggerIncomingCall(true); }} 
+          className="flex items-center justify-center space-x-2 px-4 py-3 rounded-full font-bold bg-green-600 text-white transition-all shadow-lg hover:bg-green-700 active:scale-95 text-sm"
+        >
+          <Icons.Phone className="w-4 h-4" />
+          <span className="hidden lg:inline">Call</span>
+        </button>
+      </div>
+
+      {/* Phone Frame */}
+      <div ref={phoneFrameRef} className="flex-shrink-0" style={{
+        maxWidth: '100%',
+        maxHeight: 'calc(100vh - 40px)',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'flex-start'
+      }}>
         <PhoneFrame>
           <div 
             ref={screenContentRef}
@@ -304,55 +360,6 @@ const App: React.FC = () => {
           {!isLocked && activeScreen !== 'Phone' && <NavigationBar onNavigateHome={() => setActiveScreen('Home')} onBack={() => setActiveScreen('Home')} />}
         </div>
       </PhoneFrame>
-      </div>
-      
-      {/* Sandbox Controls */}
-      <div className="mt-10 flex flex-col items-center space-y-4">
-        {/* Record Button */}
-        <button 
-          onClick={isRecording ? stopRecording : startRecording}
-          className={`flex items-center space-x-2 px-8 py-4 rounded-full font-bold transition-all shadow-lg active:scale-95 ${
-            isRecording 
-              ? 'bg-red-600 text-white hover:bg-red-700 animate-pulse' 
-              : 'bg-purple-600 text-white hover:bg-purple-700'
-          }`}
-        >
-          {isRecording ? (
-            <>
-              <div className="w-4 h-4 rounded-sm bg-white"></div>
-              <span>Stop Recording</span>
-            </>
-          ) : (
-            <>
-              <div className="w-4 h-4 rounded-full bg-white border-2 border-white"></div>
-              <span>Record Screen</span>
-            </>
-          )}
-        </button>
-        
-        <div className="flex justify-center space-x-6">
-           <button 
-            onClick={() => { setIsLocked(true); setActiveScreen('Home'); }} 
-            className="flex items-center space-x-2 px-6 py-3 rounded-full font-bold bg-gray-900 text-white hover:bg-black transition-all shadow-lg active:scale-95"
-          >
-            <Icons.Power className="w-4 h-4" />
-            <span>Lock</span>
-          </button>
-          <button 
-            onClick={() => { setIsLocked(false); setActiveScreen('Home'); setQuickPanelOpen(false); }} 
-            className="flex items-center space-x-2 px-6 py-3 rounded-full font-bold bg-blue-600 text-white transition-all shadow-lg hover:bg-blue-700 active:scale-95"
-          >
-            <Icons.Home className="w-4 h-4" />
-            <span>Home</span>
-          </button>
-          <button 
-            onClick={() => { setIsLocked(false); setPreviousScreen(activeScreen); setActiveScreen('Phone'); setQuickPanelOpen(false); setTriggerIncomingCall(true); }} 
-            className="flex items-center space-x-2 px-6 py-3 rounded-full font-bold bg-green-600 text-white transition-all shadow-lg hover:bg-green-700 active:scale-95"
-          >
-            <Icons.Phone className="w-4 h-4" />
-            <span>Incoming Call</span>
-          </button>
-        </div>
       </div>
     </div>
   );

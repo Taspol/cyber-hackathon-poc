@@ -74,6 +74,15 @@ const CallingScreen: React.FC<CallingProps> = ({ name, number, onEndCall, scamDe
   const [timer, setTimer] = useState(0);
   const [hasShownWarning, setHasShownWarning] = useState(false);
   const [showWarningOverlay, setShowWarningOverlay] = useState(false);
+  const [showAIAgent, setShowAIAgent] = useState(false);
+  const [aiAgentExpanded, setAIAgentExpanded] = useState(false);
+  const [aiSuggestionText, setAISuggestionText] = useState('');
+  const [chatMessages, setChatMessages] = useState<Array<{role: 'ai' | 'user', text: string}>>([]);
+  const [userInput, setUserInput] = useState('');
+  const [suggestionHistory, setSuggestionHistory] = useState<string[]>([]);
+  const [showReportPopup, setShowReportPopup] = useState(false);
+  const [isAIMicActive, setIsAIMicActive] = useState(false);
+  const [isCallMuted, setIsCallMuted] = useState(false);
 
   useEffect(() => {
     let timeout: any;
@@ -92,27 +101,75 @@ const CallingScreen: React.FC<CallingProps> = ({ name, number, onEndCall, scamDe
     return () => clearTimeout(timeout);
   }, [callState, scamDetectEnabled]);
 
-  // Handle scam detect toggle during ongoing call
-  useEffect(() => {
-    if (callState === 'connected' && scamDetectEnabled && !hasShownWarning) {
-      const timeout = setTimeout(() => {
-        setCallState('warning');
-        setHasShownWarning(true);
-      }, 3000);
-      return () => clearTimeout(timeout);
-    }
-  }, [callState, scamDetectEnabled, hasShownWarning]);
+  // Handle scam detect toggle during ongoing call - REMOVED (handled by new AI agent effect)
+  // useEffect(() => {
+  //   if (callState === 'connected' && scamDetectEnabled && !hasShownWarning) {
+  //     const timeout = setTimeout(() => {
+  //       setCallState('warning');
+  //       setHasShownWarning(true);
+  //     }, 3000);
+  //     return () => clearTimeout(timeout);
+  //   }
+  // }, [callState, scamDetectEnabled, hasShownWarning]);
 
-  // Handle scam detect toggle during video call
+  // Show AI agent when scam detection is enabled
   useEffect(() => {
-    if (callState === 'video' && scamDetectEnabled && !hasShownWarning) {
-      const timeout = setTimeout(() => {
-        setShowWarningOverlay(true);
-        setHasShownWarning(true);
-      }, 3000);
-      return () => clearTimeout(timeout);
+    if (scamDetectEnabled && (callState === 'connected' || callState === 'video') && !hasShownWarning) {
+      let timeout1: any, timeout2: any, timeout3: any, timeout4: any;
+      
+      // Step 1: Wait 2 seconds, then show AI agent with first message
+      timeout1 = setTimeout(() => {
+        setShowAIAgent(true);
+        const firstMsg = 'ขอทราบชื่อจริงและโทรมาด้วยเรื่องอะไรครับ';
+        setAISuggestionText(firstMsg);
+        setSuggestionHistory([firstMsg]);
+        setChatMessages([{ role: 'ai', text: firstMsg }]);
+        
+        // Step 2: Wait 2 more seconds, then show second message
+        timeout2 = setTimeout(() => {
+          const secondMsg = 'จากเรื่องนี้ ต้องทำอย่างไรได้บ้างครับ';
+          setAISuggestionText(secondMsg);
+          setSuggestionHistory(prev => [...prev, secondMsg]);
+          setChatMessages(prev => [...prev, { role: 'ai', text: secondMsg }]);
+          
+          // Step 3: Wait 3 more seconds, then show warning popup
+          timeout3 = setTimeout(() => {
+            setAISuggestionText('');
+            if (callState === 'video') {
+              setShowWarningOverlay(true);
+            } else {
+              setCallState('warning');
+            }
+            setHasShownWarning(true);
+          }, 5000);
+        }, 5000);
+      }, 5000);
+      
+      return () => {
+        clearTimeout(timeout1);
+        clearTimeout(timeout2);
+        clearTimeout(timeout3);
+      };
+    } else if (!scamDetectEnabled) {
+      setShowAIAgent(false);
+      setAIAgentExpanded(false);
+      setAISuggestionText('');
+      setSuggestionHistory([]);
+      setChatMessages([]);
     }
-  }, [callState, scamDetectEnabled, hasShownWarning]);
+    // If hasShownWarning is true and user clicked continue, AI agent stays visible with existing chat
+  }, [scamDetectEnabled, callState, hasShownWarning]);
+
+  // Handle scam detect toggle during video call - REMOVED (handled by new AI agent effect)
+  // useEffect(() => {
+  //   if (callState === 'video' && scamDetectEnabled && !hasShownWarning) {
+  //     const timeout = setTimeout(() => {
+  //       setShowWarningOverlay(true);
+  //       setHasShownWarning(true);
+  //     }, 3000);
+  //     return () => clearTimeout(timeout);
+  //   }
+  // }, [callState, scamDetectEnabled, hasShownWarning]);
 
   useEffect(() => {
     let interval: any;
@@ -130,6 +187,76 @@ const CallingScreen: React.FC<CallingProps> = ({ name, number, onEndCall, scamDe
 
   const handleContinue = () => {
     setCallState('connected');
+    // Keep AI agent visible after continuing the call, don't retrigger warning
+    setShowAIAgent(true);
+    // hasShownWarning is already true, so warning won't show again
+  };
+
+  const handleEndCallFromWarning = () => {
+    setShowWarningOverlay(false);
+    setShowReportPopup(true);
+  };
+
+  const handleConfirmReport = () => {
+    // Here you would send the report to your backend
+    setShowReportPopup(false);
+    onEndCall();
+  };
+
+  const handleSkipReport = () => {
+    setShowReportPopup(false);
+    onEndCall();
+  };
+
+  const handleAIMicToggle = () => {
+    const newMicState = !isAIMicActive;
+    setIsAIMicActive(newMicState);
+    // When AI mic is active, mute the call automatically
+    if (newMicState) {
+      setIsCallMuted(true);
+    }else {
+      setIsCallMuted(false);
+    }
+  };
+
+  const handleCallMuteToggle = () => {
+    const newMuteState = !isCallMuted;
+    setIsCallMuted(newMuteState);
+    
+    // If unmuting the call, turn off AI mic
+    if (!newMuteState && isAIMicActive) {
+      setIsAIMicActive(false);
+    }
+  };
+
+  const handleSendMessage = () => {
+    if (!userInput.trim()) return;
+    
+    // Add user message
+    setChatMessages(prev => [...prev, { role: 'user', text: userInput }]);
+    
+    // Simulate AI response
+    setTimeout(() => {
+      const responses = [
+        'ฉันจะช่วยวิเคราะห์การโทรนี้ให้คุณ ควรระวังการให้ข้อมูลส่วนตัว',
+        'จากการตรวจสอบ พบว่ามีพฤติกรรมที่น่าสงสัย แนะนำให้สอบถามข้อมูลเพิ่มเติม',
+        'คุณควรขอหมายเลขติดต่อกลับและตรวจสอบความถูกต้องของข้อมูล',
+        'หากมีการขอข้อมูลทางการเงิน ควรระงับการสนทนาทันที'
+      ];
+      const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+      setChatMessages(prev => [...prev, { role: 'ai', text: randomResponse }]);
+    }, 800);
+    
+    setUserInput('');
+  };
+
+  const handleExpandAI = () => {
+    setAIAgentExpanded(true);
+    // Load suggestion history into chat when first opened (only if chat is empty)
+    if (chatMessages.length === 0 && suggestionHistory.length > 0) {
+      setChatMessages(suggestionHistory.map(text => ({ role: 'ai' as const, text })));
+    }
+    // Chat messages persist across expand/collapse
   };
 
   // Video call view
@@ -176,7 +303,7 @@ const CallingScreen: React.FC<CallingProps> = ({ name, number, onEndCall, scamDe
               </p>
               <div className="flex flex-col w-full space-y-3">
                 <button 
-                  onClick={onEndCall}
+                  onClick={handleEndCallFromWarning}
                   className="w-full py-4 bg-red-500 text-white font-bold rounded-3xl shadow-lg active:scale-95 transition-transform"
                 >
                   End Call
@@ -192,11 +319,170 @@ const CallingScreen: React.FC<CallingProps> = ({ name, number, onEndCall, scamDe
           </div>
         )}
 
+        {/* Report Confirmation Popup for Video Call */}
+        {showReportPopup && (
+          <div className="absolute inset-0 z-[170] flex items-center justify-center p-6 bg-black/50 backdrop-blur-md animate-in fade-in duration-300">
+            <div className="bg-white rounded-[2.5rem] p-8 shadow-2xl w-full max-w-sm flex flex-col items-center text-center animate-in zoom-in-95 duration-300">
+              <div className="w-20 h-20 bg-orange-50 rounded-full flex items-center justify-center mb-6">
+                <svg viewBox="0 0 24 24" fill="currentColor" className="w-10 h-10 text-orange-500">
+                  <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 9h-2V5h2v6zm0 4h-2v-2h2v2z"/>
+                </svg>
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-3">Report Suspicious Caller?</h3>
+              <p className="text-gray-500 text-sm leading-relaxed mb-4">
+                Suspicious bank account detected:
+              </p>
+              <div className="bg-gray-50 rounded-2xl p-4 mb-6 w-full">
+                <div className="text-left space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-xs font-semibold text-gray-600">Bank:</span>
+                    <span className="text-xs font-bold text-gray-900">Bank A</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-xs font-semibold text-gray-600">Account ID:</span>
+                    <span className="text-xs font-mono font-bold text-gray-900">1234-5678-9012</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-xs font-semibold text-gray-600">Phone:</span>
+                    <span className="text-xs font-mono font-bold text-gray-900">{number}</span>
+                  </div>
+                </div>
+              </div>
+              <p className="text-gray-500 text-xs leading-relaxed mb-6">
+                Do you want to report this number and data to the authorities?
+              </p>
+              <div className="flex flex-col w-full space-y-3">
+                <button 
+                  onClick={handleConfirmReport}
+                  className="w-full py-4 bg-orange-500 text-white font-bold rounded-3xl shadow-lg active:scale-95 transition-transform"
+                >
+                  Yes, Report
+                </button>
+                <button 
+                  onClick={handleSkipReport}
+                  className="w-full py-4 bg-gray-100 text-gray-700 font-bold rounded-3xl active:bg-gray-200 transition-colors"
+                >
+                  No, Skip
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* AI Agent Assistant */}
+        {showAIAgent && (
+          <div className="absolute top-32 right-6 z-[155] flex items-center gap-3">
+            {/* Suggestion Text Popup */}
+            {!aiAgentExpanded && aiSuggestionText && (
+              <div className="bg-white rounded-2xl shadow-lg px-4 py-2 max-w-[200px] animate-in slide-in-from-right fade-in duration-500">
+                <p className="text-xs font-semibold text-gray-800">
+                  {aiSuggestionText}
+                </p>
+              </div>
+            )}
+            
+            {aiAgentExpanded ? (
+              <div className="bg-white rounded-3xl shadow-2xl p-6 w-72 animate-in zoom-in-95 slide-in-from-right duration-300 flex flex-col" style={{ maxHeight: '500px' }}>
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-blue-500 rounded-full flex items-center justify-center">
+                      <svg viewBox="0 0 24 24" fill="white" className="w-5 h-5">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                      </svg>
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-gray-900 text-sm">AI Assistant</h4>
+                      <p className="text-xs text-gray-500">Scam Detection Active</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => setAIAgentExpanded(false)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                      <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                    </svg>
+                  </button>
+                </div>
+                
+                {/* Chat Messages */}
+                <div className="flex-1 overflow-y-auto space-y-3 mb-4" style={{ maxHeight: '300px' }}>
+                  {chatMessages.map((msg, idx) => (
+                    <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[80%] px-3 py-2 rounded-2xl text-xs ${
+                        msg.role === 'user' 
+                          ? 'bg-purple-500 text-white' 
+                          : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {msg.text}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Input Area */}
+                <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
+                  <button
+                    onClick={handleAIMicToggle}
+                    className={`w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all ${
+                      isAIMicActive ? 'bg-red-500 text-white animate-pulse' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                    title={isAIMicActive ? 'Stop listening' : 'Speak to AI'}
+                  >
+                    <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+                      <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.91-3c-.49 0-.9.36-.98.85C16.52 14.2 14.47 16 12 16s-4.52-1.8-4.93-4.15c-.08-.49-.49-.85-.98-.85-.61 0-1.09.54-1 1.14.49 3 2.89 5.35 5.91 5.78V20c0 .55.45 1 1 1s1-.45 1-1v-2.08c3.02-.43 5.42-2.78 5.91-5.78.1-.6-.39-1.14-1-1.14z"/>
+                    </svg>
+                  </button>
+                  <input
+                    type="text"
+                    value={userInput}
+                    onChange={(e) => setUserInput(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                    placeholder="Ask AI assistant..."
+                    className="flex-1 px-3 py-2 text-xs border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    disabled={isAIMicActive}
+                  />
+                  <button
+                    onClick={handleSendMessage}
+                    className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center text-white active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={isAIMicActive}
+                  >
+                    <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+                      <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={handleExpandAI}
+                className="w-14 h-14 rounded-full shadow-xl flex items-center justify-center animate-in zoom-in-95 duration-300 hover:scale-110 transition-transform flex-shrink-0 relative border-2 border-purple-500"
+              >
+                <div className="absolute inset-0 rounded-full overflow-hidden">
+                  <img src="/agent.jpeg" alt="AI Agent" className="w-full h-full object-cover" />
+                </div>
+                <div className="absolute top-0 right-0 w-4 h-4 bg-red-500 rounded-full border-2 border-white animate-pulse"></div>
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Video call controls */}
         <div className="absolute bottom-0 left-0 right-0 p-8 pb-20 bg-gradient-to-t from-black/80 to-transparent z-10">
           <div className="flex justify-center items-center space-x-6">
-            <button className="w-14 h-14 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white active:scale-90 transition-all">
-              <Icons.Mic className="w-6 h-6" />
+            <button 
+              onClick={handleCallMuteToggle}
+              className={`w-14 h-14 backdrop-blur-md rounded-full flex items-center justify-center text-white active:scale-90 transition-all ${
+                isCallMuted ? 'bg-red-500/80' : 'bg-white/20'
+              }`}
+            >
+              {isCallMuted ? (
+                <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+                  <path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z"/>
+                </svg>
+              ) : (
+                <Icons.Mic className="w-6 h-6" />
+              )}
             </button>
             <button 
               onClick={() => setCallState('connected')}
@@ -256,7 +542,7 @@ const CallingScreen: React.FC<CallingProps> = ({ name, number, onEndCall, scamDe
              </p>
              <div className="flex flex-col w-full space-y-3">
                 <button 
-                  onClick={onEndCall}
+                  onClick={handleEndCallFromWarning}
                   className="w-full py-4 bg-red-500 text-white font-bold rounded-3xl shadow-lg active:scale-95 transition-transform"
                 >
                   End Call
@@ -272,10 +558,166 @@ const CallingScreen: React.FC<CallingProps> = ({ name, number, onEndCall, scamDe
         </div>
       )}
 
+      {/* Report Confirmation Popup for Regular Call */}
+      {showReportPopup && (
+        <div className="absolute inset-0 z-[170] flex items-center justify-center p-6 bg-black/5 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-white rounded-[2.5rem] p-8 shadow-2xl w-full max-w-sm flex flex-col items-center text-center animate-in zoom-in-95 duration-300">
+            <div className="w-20 h-20 bg-orange-50 rounded-full flex items-center justify-center mb-6">
+              <svg viewBox="0 0 24 24" fill="currentColor" className="w-10 h-10 text-orange-500">
+                <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 9h-2V5h2v6zm0 4h-2v-2h2v2z"/>
+              </svg>
+            </div>
+            <h3 className="text-2xl font-bold text-gray-900 mb-3">Report Suspicious Caller?</h3>
+            <p className="text-gray-500 text-sm leading-relaxed mb-4">
+              Suspicious bank account detected:
+            </p>
+            <div className="bg-gray-50 rounded-2xl p-4 mb-6 w-full">
+              <div className="text-left space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-xs font-semibold text-gray-600">Bank:</span>
+                  <span className="text-xs font-bold text-gray-900">Bank A</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-xs font-semibold text-gray-600">Account ID:</span>
+                  <span className="text-xs font-mono font-bold text-gray-900">1234-5678-9012</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-xs font-semibold text-gray-600">Phone:</span>
+                  <span className="text-xs font-mono font-bold text-gray-900">{number}</span>
+                </div>
+              </div>
+            </div>
+            <p className="text-gray-500 text-xs leading-relaxed mb-6">
+              Do you want to report this number and data to the authorities?
+            </p>
+            <div className="flex flex-col w-full space-y-3">
+              <button 
+                onClick={handleConfirmReport}
+                className="w-full py-4 bg-orange-500 text-white font-bold rounded-3xl shadow-lg active:scale-95 transition-transform"
+              >
+                Yes, Report
+              </button>
+              <button 
+                onClick={handleSkipReport}
+                className="w-full py-4 bg-gray-100 text-gray-700 font-bold rounded-3xl active:bg-gray-200 transition-colors"
+              >
+                No, Skip
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI Agent Assistant */}
+      {showAIAgent && (
+        <div className="absolute top-32 right-6 z-[155] flex items-center gap-3">
+          {/* Suggestion Text Popup */}
+          {!aiAgentExpanded && aiSuggestionText && (
+            <div className="bg-white rounded-2xl shadow-lg px-4 py-2 max-w-[200px] animate-in slide-in-from-right fade-in duration-500">
+              <p className="text-xs font-semibold text-gray-800">
+                {aiSuggestionText}
+              </p>
+            </div>
+          )}
+          {aiAgentExpanded ? (
+            <div className="bg-white rounded-3xl shadow-2xl p-6 w-72 animate-in zoom-in-95 slide-in-from-right duration-300 flex flex-col" style={{ maxHeight: '500px' }}>
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-blue-500 rounded-full flex items-center justify-center">
+                    <svg viewBox="0 0 24 24" fill="white" className="w-5 h-5">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-gray-900 text-sm">AI Assistant</h4>
+                    <p className="text-xs text-gray-500">Scam Detection Active</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setAIAgentExpanded(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                    <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                  </svg>
+                </button>
+              </div>
+              
+              {/* Chat Messages */}
+              <div className="flex-1 overflow-y-auto space-y-3 mb-4" style={{ maxHeight: '300px' }}>
+                {chatMessages.map((msg, idx) => (
+                  <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[80%] px-3 py-2 rounded-2xl text-xs ${
+                      msg.role === 'user' 
+                        ? 'bg-purple-500 text-white' 
+                        : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {msg.text}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Input Area */}
+              <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
+                <button
+                  onClick={handleAIMicToggle}
+                  className={`w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-all ${
+                    isAIMicActive ? 'bg-red-500 text-white animate-pulse' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                  title={isAIMicActive ? 'Stop listening' : 'Speak to AI'}
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+                    <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.91-3c-.49 0-.9.36-.98.85C16.52 14.2 14.47 16 12 16s-4.52-1.8-4.93-4.15c-.08-.49-.49-.85-.98-.85-.61 0-1.09.54-1 1.14.49 3 2.89 5.35 5.91 5.78V20c0 .55.45 1 1 1s1-.45 1-1v-2.08c3.02-.43 5.42-2.78 5.91-5.78.1-.6-.39-1.14-1-1.14z"/>
+                  </svg>
+                </button>
+                <input
+                  type="text"
+                  value={userInput}
+                  onChange={(e) => setUserInput(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                  placeholder="Ask AI assistant..."
+                  className="flex-1 px-3 py-2 text-xs border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  disabled={isAIMicActive}
+                />
+                <button
+                  onClick={handleSendMessage}
+                  className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center text-white active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={isAIMicActive}
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={handleExpandAI}
+              className="w-14 h-14 rounded-full shadow-xl flex items-center justify-center animate-in zoom-in-95 duration-300 hover:scale-110 transition-transform flex-shrink-0 relative border-2 border-purple-500"
+            >
+              <div className="absolute inset-0 rounded-full overflow-hidden">
+                <img src="/agent.jpeg" alt="AI Agent" className="w-full h-full object-cover" />
+              </div>
+              <div className="absolute top-0 right-0 w-4 h-4 bg-red-500 rounded-full border-2 border-white animate-pulse"></div>
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Call Controls Grid */}
       <div className={`grid grid-cols-3 gap-y-10 gap-x-8 px-12 mt-auto pb-5 mb-3 transition-opacity duration-500 ${callState === 'warning' ? 'opacity-0' : 'opacity-100'}`}>
         {[
-          { icon: <Icons.Mic className="w-6 h-6" />, label: 'Mute' },
+          { 
+            icon: isCallMuted ? (
+              <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+                <path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z"/>
+              </svg>
+            ) : <Icons.Mic className="w-6 h-6" />, 
+            label: 'Mute',
+            onClick: handleCallMuteToggle,
+            active: isCallMuted
+          },
           { icon: <Icons.Keypad className="w-6 h-6" />, label: 'Keypad' },
           { icon: <Icons.Volume className="w-6 h-6" />, label: 'Speaker' },
           { icon: <Icons.Search className="w-6 h-6" />, label: 'Add call' },
