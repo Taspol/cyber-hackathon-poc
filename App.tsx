@@ -8,6 +8,7 @@ import QuickPanel from './components/QuickPanel';
 import PhoneApp from './components/PhoneApp';
 import LockScreen from './components/LockScreen';
 import SettingsScreen from './components/SettingsScreen';
+import ScamProtectApp from './components/ScamProtectApp';
 import { Icons, COLORS } from './constants';
 import { generateMockupMessages } from './services/geminiService';
 import { Message, ScreenType } from './types';
@@ -158,7 +159,7 @@ const App: React.FC = () => {
         </div>
 
         {/* Weather Widget - One UI Style */}
-        <div className="bg-white/10 backdrop-blur-xl rounded-[2.5rem] p-6 shadow-xl border border-white/10 flex items-center justify-between">
+        <div className="bg-white/10 backdrop-blur-xl rounded-[2.5rem] p-4 shadow-xl border border-white/10 flex items-center justify-between">
           <div className="flex flex-col">
             <span className="text-white text-sm font-medium">San Francisco</span>
             <div className="flex items-baseline space-x-1">
@@ -191,8 +192,13 @@ const App: React.FC = () => {
             { label: 'Google', image: '/apps/google.webp' },
             { label: 'Facebook', image: '/apps/facebook.webp' },
             { label: 'K PLUS', image: '/apps/kplus.png' },
+            { label: 'ScamProtect', image: '/apps/scam-protect.png', screen: 'ScamProtect' },
           ].map((app, i) => (
-            <div key={i} className="flex flex-col items-center space-y-1 active:scale-90 transition-transform cursor-pointer">
+            <div 
+              key={i} 
+              onClick={() => app.screen && setActiveScreen(app.screen as ScreenType)}
+              className="flex flex-col items-center space-y-1 active:scale-90 transition-transform cursor-pointer"
+            >
                <div className="w-14 h-14 rounded-[1.3rem] shadow-md overflow-hidden bg-white/5 flex items-center justify-center border border-white/10">
                  <img 
                     src={app.image} 
@@ -211,7 +217,7 @@ const App: React.FC = () => {
       </div>
 
       {/* Dock Area */}
-      <div className="px-6 py-8 pb-16 grid grid-cols-4 gap-4 z-10 bg-gradient-to-t from-black/40 to-transparent">
+      <div className="px-6 py-6 pb-16 grid grid-cols-4 gap-4 z-10 bg-gradient-to-t from-black/40 to-transparent">
         {[
           { icon: <Icons.Phone className="w-7 h-7 text-white"/>, color: 'bg-[#4caf50]', label: 'Phone', screen: 'Phone' },
           { icon: <Icons.Messages className="w-7 h-7 text-white"/>, color: 'bg-[#ff9800]', label: 'Messages', screen: 'Messages' },
@@ -223,7 +229,7 @@ const App: React.FC = () => {
             onClick={() => app.screen && setActiveScreen(app.screen as ScreenType)}
             className="flex flex-col items-center space-y-1 group"
           >
-            <div className={`${app.color} w-[62px] h-[62px] rounded-[1.7rem] flex items-center justify-center shadow-xl transition-all active:scale-90`}>
+            <div className={`${app.color} w-[55px] h-[55px] rounded-[1.7rem] flex items-center justify-center shadow-xl transition-all active:scale-90`}>
               {app.icon}
             </div>
             <span className="text-[10px] font-semibold text-white drop-shadow-md">{app.label}</span>
@@ -341,6 +347,7 @@ const App: React.FC = () => {
                   </div>
                 )}
                 {activeScreen === 'Settings' && <SettingsScreen scrolled={scrolled} />}
+                {activeScreen === 'ScamProtect' && <ScamProtectApp scrolled={scrolled} />}
                 {activeScreen === 'Phone' && <PhoneApp scrolled={scrolled} scamDetectEnabled={scamDetectEnabled} onScamDetectToggle={setScamDetectEnabled} triggerIncomingCall={triggerIncomingCall} onCallTriggered={() => setTriggerIncomingCall(false)} onNavigateBack={() => setActiveScreen(previousScreen)} />}
               </div>
             )}

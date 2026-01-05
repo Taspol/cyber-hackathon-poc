@@ -83,6 +83,7 @@ const CallingScreen: React.FC<CallingProps> = ({ name, number, onEndCall, scamDe
   const [showReportPopup, setShowReportPopup] = useState(false);
   const [isAIMicActive, setIsAIMicActive] = useState(false);
   const [isCallMuted, setIsCallMuted] = useState(false);
+  const [showAnalyzingPopup, setShowAnalyzingPopup] = useState(false);
 
   useEffect(() => {
     let timeout: any;
@@ -115,37 +116,48 @@ const CallingScreen: React.FC<CallingProps> = ({ name, number, onEndCall, scamDe
   // Show AI agent when scam detection is enabled
   useEffect(() => {
     if (scamDetectEnabled && (callState === 'connected' || callState === 'video') && !hasShownWarning) {
-      let timeout1: any, timeout2: any, timeout3: any, timeout4: any;
+      let timeoutAnalyzing: any, timeout0: any, timeout1: any, timeout2: any, timeout3: any;
       
-      // Step 1: Wait 2 seconds, then show AI agent with first message
-      timeout1 = setTimeout(() => {
-        setShowAIAgent(true);
-        const firstMsg = 'ขอทราบชื่อจริงและโทรมาด้วยเรื่องอะไรครับ';
-        setAISuggestionText(firstMsg);
-        setSuggestionHistory([firstMsg]);
-        setChatMessages([{ role: 'ai', text: firstMsg }]);
+      // Wait 3 seconds before showing analyzing popup
+      timeoutAnalyzing = setTimeout(() => {
+        setShowAnalyzingPopup(true);
+      }, 3000);
+      
+      // Step 1: Wait 6 seconds total (3s delay + 3s analyzing), hide analyzing popup, then show AI agent with first message
+      timeout0 = setTimeout(() => {
+        setShowAnalyzingPopup(false);
         
-        // Step 2: Wait 2 more seconds, then show second message
-        timeout2 = setTimeout(() => {
-          const secondMsg = 'จากเรื่องนี้ ต้องทำอย่างไรได้บ้างครับ';
-          setAISuggestionText(secondMsg);
-          setSuggestionHistory(prev => [...prev, secondMsg]);
-          setChatMessages(prev => [...prev, { role: 'ai', text: secondMsg }]);
+        timeout1 = setTimeout(() => {
+          setShowAIAgent(true);
+          const firstMsg = 'ขอทราบชื่อจริงและโทรมาด้วยเรื่องอะไรครับ';
+          setAISuggestionText(firstMsg);
+          setSuggestionHistory([firstMsg]);
+          setChatMessages([{ role: 'ai', text: firstMsg }]);
           
-          // Step 3: Wait 3 more seconds, then show warning popup
-          timeout3 = setTimeout(() => {
-            setAISuggestionText('');
-            if (callState === 'video') {
-              setShowWarningOverlay(true);
-            } else {
-              setCallState('warning');
-            }
-            setHasShownWarning(true);
+          // Step 2: Wait 5 more seconds, then show second message
+          timeout2 = setTimeout(() => {
+            const secondMsg = 'ต้องทำยังไงบ้างครับ';
+            setAISuggestionText(secondMsg);
+            setSuggestionHistory(prev => [...prev, secondMsg]);
+            setChatMessages(prev => [...prev, { role: 'ai', text: secondMsg }]);
+            
+            // Step 3: Wait 5 more seconds, then show warning popup
+            timeout3 = setTimeout(() => {
+              setAISuggestionText('');
+              if (callState === 'video') {
+                setShowWarningOverlay(true);
+              } else {
+                setCallState('warning');
+              }
+              setHasShownWarning(true);
+            }, 5000);
           }, 5000);
-        }, 5000);
-      }, 5000);
+        }, 1000);
+      }, 6000);
       
       return () => {
+        clearTimeout(timeoutAnalyzing);
+        clearTimeout(timeout0);
         clearTimeout(timeout1);
         clearTimeout(timeout2);
         clearTimeout(timeout3);
@@ -156,6 +168,7 @@ const CallingScreen: React.FC<CallingProps> = ({ name, number, onEndCall, scamDe
       setAISuggestionText('');
       setSuggestionHistory([]);
       setChatMessages([]);
+      setShowAnalyzingPopup(false);
     }
     // If hasShownWarning is true and user clicked continue, AI agent stays visible with existing chat
   }, [scamDetectEnabled, callState, hasShownWarning]);
@@ -238,10 +251,10 @@ const CallingScreen: React.FC<CallingProps> = ({ name, number, onEndCall, scamDe
     // Simulate AI response
     setTimeout(() => {
       const responses = [
-        'ฉันจะช่วยวิเคราะห์การโทรนี้ให้คุณ ควรระวังการให้ข้อมูลส่วนตัว',
-        'จากการตรวจสอบ พบว่ามีพฤติกรรมที่น่าสงสัย แนะนำให้สอบถามข้อมูลเพิ่มเติม',
+        // 'ฉันจะช่วยวิเคราะห์การโทรนี้ให้คุณ ควรระวังการให้ข้อมูลส่วนตัว',
+        // 'จากการตรวจสอบ พบว่ามีพฤติกรรมที่น่าสงสัย แนะนำให้สอบถามข้อมูลเพิ่มเติม',
         'คุณควรขอหมายเลขติดต่อกลับและตรวจสอบความถูกต้องของข้อมูล',
-        'หากมีการขอข้อมูลทางการเงิน ควรระงับการสนทนาทันที'
+        // 'หากมีการขอข้อมูลทางการเงิน ควรระงับการสนทนาทันที'
       ];
       const randomResponse = responses[Math.floor(Math.random() * responses.length)];
       setChatMessages(prev => [...prev, { role: 'ai', text: randomResponse }]);
@@ -287,6 +300,20 @@ const CallingScreen: React.FC<CallingProps> = ({ name, number, onEndCall, scamDe
           <span className="text-white text-xl font-semibold drop-shadow-lg">{name}</span>
           <span className="text-white/80 text-sm drop-shadow-lg">{formatTime(timer)}</span>
         </div>
+
+        {/* Analyzing Popup */}
+        {showAnalyzingPopup && (
+          <div className="absolute top-20 left-1/2 -translate-x-1/2 z-[155] animate-in fade-in slide-in-from-top duration-500">
+            <div className="bg-orange-500 rounded-full shadow-lg px-4 py-2 flex items-center space-x-2">
+              <div className="flex space-x-1">
+                <div className="w-1.5 h-1.5 bg-white rounded-full animate-bounce" style={{animationDelay: '0ms'}}></div>
+                <div className="w-1.5 h-1.5 bg-white rounded-full animate-bounce" style={{animationDelay: '150ms'}}></div>
+                <div className="w-1.5 h-1.5 bg-white rounded-full animate-bounce" style={{animationDelay: '300ms'}}></div>
+              </div>
+              <span className="text-xs font-semibold text-white">Analyzing Suspicious Call...</span>
+            </div>
+          </div>
+        )}
 
         {/* Scam Warning Modal Overlay for Video Call */}
         {showWarningOverlay && (
@@ -526,6 +553,20 @@ const CallingScreen: React.FC<CallingProps> = ({ name, number, onEndCall, scamDe
           {callState === 'dialing' ? 'Calling...' : callState === 'warning' ? 'Checking security...' : `Ongoing Call • ${formatTime(timer)}`}
         </p>
       </div>
+
+      {/* Analyzing Popup */}
+      {showAnalyzingPopup && (
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[155] animate-in fade-in slide-in-from-top duration-500">
+          <div className="bg-orange-500 rounded-full shadow-lg px-4 py-2 flex items-center space-x-2">
+            <div className="flex space-x-1">
+              <div className="w-1.5 h-1.5 bg-white rounded-full animate-bounce" style={{animationDelay: '0ms'}}></div>
+              <div className="w-1.5 h-1.5 bg-white rounded-full animate-bounce" style={{animationDelay: '150ms'}}></div>
+              <div className="w-1.5 h-1.5 bg-white rounded-full animate-bounce" style={{animationDelay: '300ms'}}></div>
+            </div>
+            <span className="text-xs font-semibold text-white">Analyzing Suspicious Call...</span>
+          </div>
+        </div>
+      )}
 
       {/* Scam Warning Modal Overlay */}
       {callState === 'warning' && (

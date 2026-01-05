@@ -16,5 +16,5 @@ export interface Notification {
   time: string;
 }
 
-export type ScreenType = 'Home' | 'Messages' | 'Settings' | 'Phone';
+export type ScreenType = 'Home' | 'Messages' | 'Settings' | 'Phone' | 'ScamProtect';
 export type PhoneTab = 'Keypad' | 'Recents' | 'Contacts';
